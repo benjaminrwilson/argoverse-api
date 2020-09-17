@@ -4,12 +4,11 @@ import logging
 import os
 from collections import defaultdict
 from dataclasses import dataclass, field
+from logging import error
 from multiprocessing import Pool
 from pathlib import Path
 from typing import DefaultDict, List, Tuple
 
-import matplotlib
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
@@ -25,7 +24,6 @@ from argoverse.evaluation.detection_utils import (
     interp,
 )
 
-matplotlib.use("Agg")
 logger = logging.getLogger(__name__)
 
 
@@ -51,6 +49,7 @@ class DetectionCfg:
     tp_thresh: float = 2.0
     significant_digits: int = 3
     detection_classes: List[str] = field(default_factory=lambda: list(OBJ_CLASS_MAPPING_DICT.keys()))
+    save_plots: bool = False
 
 
 @dataclass
@@ -77,6 +76,11 @@ class DetectionEvaluator:
         Returns:
             The evaluation metrics.
         """
+        if self.dt_cfg.save_plots:
+            import matplotlib
+
+            matplotlib.use("Agg")
+            import matplotlib.pyplot as plt
         dt_fpaths = list(self.dt_fpath.glob("*/per_sweep_annotations_amodal/*.json"))
         gt_fpaths = list(self.gt_fpath.glob("*/per_sweep_annotations_amodal/*.json"))
 
@@ -86,11 +90,10 @@ class DetectionEvaluator:
 
         with Pool(os.cpu_count()) as p:
             accum = p.map(self.accumulate, gt_fpaths)
-        # [self.accumulate(gt_fpath) for gt_fpath in gt_fpaths]
 
         for frame_stats, frame_cls_to_inst in accum:
-            for cls_name, cls_stats in frame_stats.items():
-                data[cls_name].append(cls_stats)
+            for cls_name, (true_positives, errors, scores) in frame_stats.items():
+                data[cls_name].append(np.hstack((true_positives, errors, scores)))
             for cls_name, num_inst in frame_cls_to_inst.items():
                 cls_to_ninst[cls_name] += num_inst
 
@@ -153,10 +156,11 @@ class DetectionEvaluator:
             True positives, false positives, scores, and translation errors.
         """
         n_threshs = len(self.dt_cfg.sim_ths)
-        error_types = np.zeros((dts.shape[0], n_threshs + 3))
+        true_positives = np.zeros((dts.shape[0], n_threshs))
+        errors = np.ones((dts.shape[0], 3))
         scores, ranks = get_ranks(dts)
         if gts.shape[0] == 0:
-            return np.hstack((error_types, scores))
+            return true_positives, errors, scores
 
         match_matrix = compute_match_matrix(dts, gts, self.dt_cfg.sim_fn_type)
 
@@ -172,7 +176,7 @@ class DetectionEvaluator:
 
             # tp_mask may need to be defined differently with other similarity metrics
             tp_mask = match_scores[unique_dt_matches] > -thr
-            error_types[unique_dt_matches, i] = tp_mask
+            true_positives[unique_dt_matches, i] = tp_mask
 
             if thr == self.dt_cfg.tp_thresh and np.count_nonzero(tp_mask) > 0:
                 dt_tp_indices = unique_dt_matches[tp_mask]
@@ -185,11 +189,9 @@ class DetectionEvaluator:
                 scale_error = dist_fn(dt_df, gt_df, DistFnType.SCALE)
                 orient_error = dist_fn(dt_df, gt_df, DistFnType.ORIENTATION)
 
-                error_types[dt_tp_indices, n_threshs : n_threshs + 3] = np.vstack(
-                    (trans_error, scale_error, orient_error)
-                ).T
+                errors[dt_tp_indices] = np.vstack((trans_error, scale_error, orient_error)).T
 
-        return np.hstack((error_types, scores))
+        return true_positives, errors, scores
 
     def summarize(
         self, data: DefaultDict[str, np.ndarray], cls_to_ninst: DefaultDict[str, int]
@@ -213,7 +215,9 @@ class DetectionEvaluator:
             ninst = cls_to_ninst[cls_name]
             ranks = cls_stats[:, -1].argsort()[::-1]
             cls_stats = cls_stats[ranks]
+            tp_errors = cls_stats[:, num_ths : num_ths + 3]
 
+            cls_summary = []
             for i, _ in enumerate(self.dt_cfg.sim_ths):
                 tp = cls_stats[:, i].astype(bool)
 
@@ -227,26 +231,37 @@ class DetectionEvaluator:
                 precisions = interp(precisions)
                 precisions_interpolated = np.interp(recalls_interpolated, recalls, precisions, right=0)
 
+                errors_interpolated = []
+                for _, errors in enumerate(tp_errors.T):
+                    errors_interpolated += [np.interp(recalls_interpolated, recalls, errors, right=0)[:, np.newaxis]]
+                errors_interpolated = np.hstack(errors_interpolated)
+
                 prec_truncated = precisions_interpolated[10 + 1 :]
-                ap_th = prec_truncated.mean()
-                summary[cls_name] += [ap_th]
+                errors_truncated = errors_interpolated[10 + 1 :]
+                class_ap = prec_truncated.mean()
+                class_errors = errors_truncated.mean(axis=0)
 
-                self.plot(recalls_interpolated, precisions_interpolated, cls_name)
+                cls_summary.append([class_ap, *class_errors])
 
-            # AP Metric
-            ap = np.array(summary[cls_name][:num_ths]).mean()
+                if self.dt_cfg.save_plots:
+                    self.plot(recalls_interpolated, precisions_interpolated, cls_name)
+            summary[cls_name] = np.vstack(cls_summary)
 
-            # TP Error Metrics
-            tp_metrics = np.mean(cls_stats[:, num_ths : num_ths + 3], axis=0)
-            tp_metrics[2] /= np.pi / 2  # normalize orientation
+        summary = {k: np.vstack(v).mean(axis=0) for k, v in summary.items()}
+        # AP Metric
+        # ap = np.array(summary[cls_name][:, 0]).mean(axis=0)git
 
-            # clip so that we don't get negative values in (1 - ATE)
-            cds_summands = np.hstack((ap, np.clip(1 - tp_metrics, a_min=0, a_max=None)))
+        # TP Error Metrics
+        # tp_metrics = np.mean(cls_stats[:, num_ths : num_ths + 3], axis=0)
+        # tp_metrics[2] /= np.pi / 2  # normalize orientation
 
-            # Ranking metric
-            cds = np.average(cds_summands, weights=self.dt_cfg.cds_weights)
+        # clip so that we don't get negative values in (1 - ATE)
+        # cds_summands = np.hstack((ap, np.clip(1 - tp_metrics, a_min=0, a_max=None)))
 
-            summary[cls_name] = [ap, *tp_metrics, cds]
+        # Ranking metric
+        cds = np.average(cds_summands, weights=self.dt_cfg.cds_weights)
+
+        summary[cls_name] = [ap, *tp_metrics, cds]
 
         logger.info(f"summary = {summary}")
         return summary
