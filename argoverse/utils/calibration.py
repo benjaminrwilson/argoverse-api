@@ -222,10 +222,7 @@ def load_calib(calib_filepath: Union[str, Path]) -> Dict[Any, Calibration]:
     calib_list = {}
     for camera in CAMERA_LIST:
         cam_config = get_calibration_config(calib, camera)
-        calib_cam = next(
-            (c for c in calib["camera_data_"] if c["key"] == f"image_raw_{camera}"),
-            None,
-        )
+        calib_cam = next((c for c in calib["camera_data_"] if c["key"] == f"image_raw_{camera}"), None,)
 
         if calib_cam is None:
             continue
@@ -281,11 +278,9 @@ def get_camera_intrinsic_matrix(camera_config: Dict[str, Any]) -> np.ndarray:
 def get_calibration_config(calibration: Dict[str, Any], camera_name: str) -> CameraConfig:
     """
     Get calibration config dumped with log.
-
     Args:
         calibration
         camera_name: name of the camera.
-
     Returns:
        instance of CameraConfig class
     """
@@ -296,19 +291,17 @@ def get_calibration_config(calibration: Dict[str, Any], camera_name: str) -> Cam
             break
     else:
         raise ValueError(f"Unknown camera name: {camera_name}")
-
     camera_extrinsic_matrix = get_camera_extrinsic_matrix(camera_calibration)
     camera_intrinsic_matrix = get_camera_intrinsic_matrix(camera_calibration)
-
     if camera_name in STEREO_CAMERA_LIST:
         img_width = STEREO_IMG_WIDTH
         img_height = STEREO_IMG_HEIGHT
-    elif camera_name in RING_CAMERA_LIST:
-        img_width = RING_IMG_WIDTH
-        img_height = RING_IMG_HEIGHT
+    elif "ring_front_center" in camera_name:
+        img_width = RING_IMG_HEIGHT
+        img_height = RING_IMG_WIDTH  # taller than usual, portrait
     else:
-        raise ValueError(f"Unknown camera name: {camera_name}")
-
+        img_width = RING_IMG_WIDTH
+        img_height = RING_IMG_HEIGHT  # landscape
     return CameraConfig(
         camera_extrinsic_matrix,
         camera_intrinsic_matrix,
@@ -514,10 +507,7 @@ def distort_single(radius_undist: float, distort_coeffs: List[float]) -> float:
 
 
 def project_lidar_to_undistorted_img(
-    lidar_points_h: np.ndarray,
-    calib_data: Dict[str, Any],
-    camera_name: str,
-    remove_nan: bool = False,
+    lidar_points_h: np.ndarray, calib_data: Dict[str, Any], camera_name: str, remove_nan: bool = False,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, CameraConfig]:
     camera_config = get_calibration_config(calib_data, camera_name)
 
@@ -541,10 +531,7 @@ def project_lidar_to_undistorted_img(
 # valid_pts_bool: Numpy array of shape (N,) with dtype bool
 # camera configuration : (only if you asked for it).
 _ReturnWithOptConfig = Tuple[
-    Optional[np.ndarray],
-    Optional[np.ndarray],
-    Optional[np.ndarray],
-    Optional[CameraConfig],
+    Optional[np.ndarray], Optional[np.ndarray], Optional[np.ndarray], Optional[CameraConfig],
 ]
 _ReturnWithoutOptConfig = Tuple[Optional[np.ndarray], Optional[np.ndarray], Optional[np.ndarray]]
 

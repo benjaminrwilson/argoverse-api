@@ -63,7 +63,7 @@ class SynchronizationDB:
     # LiDAR is 10 Hz
     # Max we are halfway between 33.3 milliseconds on either side
     # then convert milliseconds to nanoseconds
-    MAX_LIDAR_RING_CAM_TIMESTAMP_DIFF = 33.3 * (1.0 / 2) * (1.0 / 1000) * 1e9
+    MAX_LIDAR_RING_CAM_TIMESTAMP_DIFF = 50.0 * (1.0 / 2) * (1.0 / 1000) * 1e9
     # Stereo Camera is 5 Hz (once per 200 milliseconds)
     # LiDAR is 10 Hz
     # Since Stereo is more sparse, we look for 200 millisecond on either side
