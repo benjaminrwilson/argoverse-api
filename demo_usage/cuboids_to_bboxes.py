@@ -11,10 +11,12 @@ from typing import Any, Iterable, List, Mapping, Sequence, Tuple, Union
 
 import cv2
 import numpy as np
+from typing_extensions import Final
 
 from argoverse.data_loading.object_label_record import json_label_dict_to_obj_record
 from argoverse.data_loading.simple_track_dataloader import SimpleArgoverseTrackingDataLoader
 from argoverse.map_representation.map_api import ArgoverseMap
+from argoverse.sensor_dataset_config import ArgoverseConfig
 from argoverse.utils.calibration import (
     CameraConfig,
     get_calibration_config,
@@ -38,9 +40,9 @@ logger = logging.getLogger(__name__)
 Number = Union[int, float]
 
 # jigger lane pixel values by [-10,10] range
-LANE_COLOR_NOISE = 20
-STEREO_FPS = 5
-RING_CAM_FPS = 30
+LANE_COLOR_NOISE: Final = 20
+STEREO_FPS: Final = ArgoverseConfig.stereo_cam_fps
+RING_CAM_FPS: Final = ArgoverseConfig.ring_cam_fps
 
 
 def plot_lane_centerlines_in_img(
@@ -237,7 +239,7 @@ def dump_clipped_3d_cuboids_to_images(
                     )
 
                 if generate_video_only:
-                    video_writer.add_frame(img[:, :, ::-1])
+                    video_writer.add_frame(rgb_frame=img[:, :, ::-1])
                 else:
                     cv2.imwrite(save_img_fpath, img)
                     saved_img_fpaths += [save_img_fpath]
@@ -285,14 +287,15 @@ def main(args: Any):
             accum = p.starmap(dump_clipped_3d_cuboids_to_images, single_process_args)
 
     else:
+        # run in a single process, instead
         dump_clipped_3d_cuboids_to_images(
-            log_ids,
-            args.max_num_images_to_render * 9,
-            args.dataset_dir,
-            args.experiment_prefix,
-            not args.no_motion_compensation,
-            args.omit_centerlines,
-            args.generate_video_only,
+            log_ids=log_ids,
+            max_num_images_to_render=args.max_num_images_to_render * 9,
+            data_dir=args.dataset_dir,
+            experiment_prefix=args.experiment_prefix,
+            motion_compensate=not args.no_motion_compensation,
+            omit_centerlines=args.omit_centerlines,
+            generate_video_only=args.generate_video_only,
         )
 
 

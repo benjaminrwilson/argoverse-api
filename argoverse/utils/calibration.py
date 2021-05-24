@@ -15,11 +15,8 @@ from argoverse.utils.camera_stats import (
     CAMERA_LIST,
     RECTIFIED_STEREO_CAMERA_LIST,
     RING_CAMERA_LIST,
-    RING_IMG_HEIGHT,
-    RING_IMG_WIDTH,
     STEREO_CAMERA_LIST,
-    STEREO_IMG_HEIGHT,
-    STEREO_IMG_WIDTH,
+    get_image_dims_for_camera,
 )
 from argoverse.utils.se3 import SE3
 from argoverse.utils.transform import quat2rotmat
@@ -223,10 +220,7 @@ def load_calib(calib_filepath: Union[str, Path]) -> Dict[Any, Calibration]:
     calib_list = {}
     for camera in CAMERA_LIST:
         cam_config = get_calibration_config(calib, camera)
-        calib_cam = next(
-            (c for c in calib["camera_data_"] if c["key"] == f"image_raw_{camera}"),
-            None,
-        )
+        calib_cam = next((c for c in calib["camera_data_"] if c["key"] == f"image_raw_{camera}"), None,)
 
         if calib_cam is None:
             continue
@@ -251,10 +245,7 @@ def load_stereo_calib(calib_filepath: Union[str, Path]) -> Dict[Any, Calibration
     calib_list = {}
     for camera in RECTIFIED_STEREO_CAMERA_LIST:
         cam_config = get_calibration_config(calib, camera)
-        calib_cam = next(
-            (c for c in calib["camera_data_"] if c["key"] == f"image_raw_{camera}"),
-            None,
-        )
+        calib_cam = next((c for c in calib["camera_data_"] if c["key"] == f"image_raw_{camera}"), None,)
 
         if calib_cam is None:
             continue
@@ -329,14 +320,9 @@ def get_calibration_config(calibration: Dict[str, Any], camera_name: str) -> Cam
     camera_extrinsic_matrix = get_camera_extrinsic_matrix(camera_calibration)
     camera_intrinsic_matrix = get_camera_intrinsic_matrix(camera_calibration)
 
-    if camera_name in STEREO_CAMERA_LIST or camera_name in RECTIFIED_STEREO_CAMERA_LIST:
-        img_width = STEREO_IMG_WIDTH
-        img_height = STEREO_IMG_HEIGHT
-    elif camera_name in RING_CAMERA_LIST:
-        img_width = RING_IMG_WIDTH
-        img_height = RING_IMG_HEIGHT
-    else:
-        raise ValueError(f"Unknown camera name: {camera_name}")
+    img_width, img_height = get_image_dims_for_camera(camera_name)
+    if img_width is None or img_height is None:
+        raise ValueError(f"Specified camera has unknown dimensions: {camera_name}")
 
     return CameraConfig(
         camera_extrinsic_matrix,
@@ -543,10 +529,7 @@ def distort_single(radius_undist: float, distort_coeffs: List[float]) -> float:
 
 
 def project_lidar_to_undistorted_img(
-    lidar_points_h: np.ndarray,
-    calib_data: Dict[str, Any],
-    camera_name: str,
-    remove_nan: bool = False,
+    lidar_points_h: np.ndarray, calib_data: Dict[str, Any], camera_name: str, remove_nan: bool = False,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, CameraConfig]:
     camera_config = get_calibration_config(calib_data, camera_name)
 
@@ -570,10 +553,7 @@ def project_lidar_to_undistorted_img(
 # valid_pts_bool: Numpy array of shape (N,) with dtype bool
 # camera configuration : (only if you asked for it).
 _ReturnWithOptConfig = Tuple[
-    Optional[np.ndarray],
-    Optional[np.ndarray],
-    Optional[np.ndarray],
-    Optional[CameraConfig],
+    Optional[np.ndarray], Optional[np.ndarray], Optional[np.ndarray], Optional[CameraConfig],
 ]
 _ReturnWithoutOptConfig = Tuple[Optional[np.ndarray], Optional[np.ndarray], Optional[np.ndarray]]
 

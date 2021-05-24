@@ -16,7 +16,7 @@ from argoverse.utils.mpl_plotting_utils import plot_lane_segment_patch
 
 
 def add_lane_segment_to_ax(
-    ax: plt.axes.Axis,
+    ax: matplotlib.axes.Axes,
     lane_centerline: np.ndarray,
     lane_polygon: np.ndarray,
     patch_color: str,
@@ -244,7 +244,7 @@ def verify_point_in_polygon_for_lanes() -> None:
 
 
 def plot_nearby_halluc_lanes(
-    ax: plt.axes.Axis,
+    ax: matplotlib.axes.Axes,
     city_name: str,
     avm: ArgoverseMap,
     query_x: float,
