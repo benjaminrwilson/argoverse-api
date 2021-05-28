@@ -120,14 +120,13 @@ class DetectionEvaluator:
         data: DefaultDict[str, List[np.ndarray]] = defaultdict(list)
         cls_to_ninst: DefaultDict[str, int] = defaultdict(int)
 
+        jobs = [AccumulateJob(self.dt_root_fpath, gt_fpath, self.cfg, self.avm) for gt_fpath in gt_fpaths]
+        self.num_procs = 1
         if self.num_procs == 1:
-            accum = [accumulate(self.dt_root_fpath, gt_fpath, self.cfg, self.avm) for gt_fpath in gt_fpaths]
-
+            accum = [accumulate(job) for job in jobs]
         else:
-            args = [AccumulateJob(self.dt_root_fpath, gt_fpath, self.cfg, self.avm) for gt_fpath in gt_fpaths]
-
-            chunksize = len(args) // self.num_procs
-            accum = process_map(accumulate, args, chunksize=chunksize)
+            chunksize = len(jobs) // self.num_procs
+            accum = process_map(accumulate, jobs, max_workers=self.num_procs, chunksize=chunksize)
 
         for frame_stats, frame_cls_to_inst in accum:
             for cls_name, cls_stats in frame_stats.items():
@@ -204,8 +203,6 @@ class DetectionEvaluator:
             cds = ap * tp_scores.mean()
 
             summary[cls_name] = [ap, *tp_metrics, cds]
-
-        logger.info(f"summary = {summary}")
         return summary
 
 

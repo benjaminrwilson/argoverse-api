@@ -133,7 +133,7 @@ def accumulate(job: AccumulateJob) -> Tuple[DefaultDict[str, np.ndarray], Defaul
     dt_root_fpath, gt_fpath, cfg, avm = job.dt_root_fpath, job.gt_fpath, job.cfg, job.avm
 
     log_id = gt_fpath.parents[1].stem
-    logger.info(f"log_id = {log_id}")
+    logger.debug(f"log_id = {log_id}")
     ts = int(gt_fpath.stem.split("_")[-1])
 
     dt_fpath = dt_root_fpath / f"{log_id}/per_sweep_annotations_amodal/" f"tracked_object_labels_{ts}.json"
@@ -170,8 +170,8 @@ def accumulate(job: AccumulateJob) -> Tuple[DefaultDict[str, np.ndarray], Defaul
         )
         gt_filtered = remove_duplicate_instances(gt_filtered, cfg)
 
-        logger.info(f"{dt_filtered.shape[0]} detections")
-        logger.info(f"{gt_filtered.shape[0]} ground truth")
+        logger.debug(f"{dt_filtered.shape[0]} detections")
+        logger.debug(f"{gt_filtered.shape[0]} ground truth")
         if dt_filtered.shape[0] > 0:
             ranked_dts, ranked_scores = rank(dt_filtered)
 
