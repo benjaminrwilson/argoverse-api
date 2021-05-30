@@ -49,8 +49,29 @@ class SensorDatasetConfig:
     camera_sensors: SensorSuiteConfig = MISSING
 
 
-DATASET_NAME = "argoverse-v1.1"
+@dataclass(frozen=True)
+class ArgoverseConfig(SensorDatasetConfig):
+    dataset_name: str = "argoverse"
+    ring_cam_fps: int = 30
+    stereo_cam_fps: int = 5
 
-with hydra.initialize_config_module(config_module="argoverse.config"):
-    cfg = hydra.compose(config_name=f"{DATASET_NAME}.yaml")
-    ArgoverseConfig: SensorDatasetConfig = instantiate(cfg.SensorDatasetConfig)
+    camera_sensors: SensorSuiteConfig = SensorSuiteConfig(
+        SensorConfig(1200, 1920, "ring_front_center"),
+        SensorConfig(1200, 1920, "ring_front_left"),
+        SensorConfig(1200, 1920, "ring_front_right"),
+        SensorConfig(1200, 1920, "ring_side_left"),
+        SensorConfig(1200, 1920, "ring_side_right"),
+        SensorConfig(1200, 1920, "ring_rear_left"),
+        SensorConfig(1200, 1920, "ring_rear_right"),
+        SensorConfig(1200, 1920, "ring_front_center"),
+        SensorConfig(2056, 2464, "stereo_front_left"),
+        SensorConfig(2056, 2464, "stereo_front_right"),
+    )
+
+
+# DATASET_NAME = "argoverse-v1.1"
+
+# with hydra.initialize_config_module(config_module="argoverse.config"):
+#     cfg = hydra.compose(config_name=f"{DATASET_NAME}.yaml")
+#     ArgoverseConfig: SensorDatasetConfig = instantiate(cfg.SensorDatasetConfig)
+#     hydra._internal.hydra.GlobalHydra.get_state().clear()
