@@ -188,9 +188,7 @@ def dump_clipped_3d_cuboids_to_images(
                     logging.info("\tLabels missing at t=%s", lidar_timestamp)
                     continue
 
-                # Swap channel order as OpenCV expects it -- BGR not RGB
-                # must make a copy to make memory contiguous
-                img = imageio.imread(im_fpath)[:, :, ::-1].copy()
+                img = cv2.imread(im_fpath)
                 camera_config = get_calibration_config(log_calib_data, camera_name)
                 planes = generate_frustum_planes(camera_config.intrinsic.copy(), camera_name)
 
@@ -242,7 +240,7 @@ def dump_clipped_3d_cuboids_to_images(
                     )
 
                 if generate_video_only:
-                    video_writer.add_frame(rgb_frame=img[:, :, ::-1])
+                    video_writer.add_frame(rgb_frame=img)
                 else:
                     cv2.imwrite(save_img_fpath, img)
                     saved_img_fpaths += [save_img_fpath]
@@ -307,7 +305,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--max-num-images-to-render",
-        default=5,
+        default=-1,
         type=int,
         help="number of images within which to render 3d cuboids",
     )

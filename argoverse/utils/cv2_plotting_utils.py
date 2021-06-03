@@ -17,9 +17,20 @@ def add_text_cv2(img: np.ndarray, text: str, x: int, y: int, color: Tuple[int, i
         text,
         (x, y),
         fontFace=cv2.FONT_HERSHEY_SIMPLEX,
-        fontScale=1,
+        fontScale=2,
+        thickness=thickness * 4,
+        color=(0, 0, 0),
+        lineType=cv2.LINE_AA,
+    )
+
+    img = cv2.putText(
+        img,
+        text,
+        (x, y),
+        fontFace=cv2.FONT_HERSHEY_SIMPLEX,
+        fontScale=2,
         thickness=thickness,
-        color=color,
+        color=(255, 255, 255),
         lineType=cv2.LINE_AA,
     )
 
