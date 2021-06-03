@@ -9,6 +9,7 @@ from typing import Any, Iterable, List, Sequence, Tuple, Union
 
 import cv2
 import numpy as np
+from tqdm import tqdm
 from typing_extensions import Final
 
 from argoverse.data_loading.object_label_record import json_label_dict_to_obj_record
@@ -22,7 +23,7 @@ from argoverse.utils.calibration import (
     project_lidar_to_img_motion_compensated,
     project_lidar_to_undistorted_img,
 )
-from argoverse.utils.camera_stats import RING_CAMERA_LIST, STEREO_CAMERA_LIST
+from argoverse.utils.camera_stats import CAMERA_LIST, RING_CAMERA_LIST, STEREO_CAMERA_LIST
 from argoverse.utils.city_visibility_utils import clip_point_cloud_to_visible_region
 from argoverse.utils.cv2_plotting_utils import draw_clipped_line_segment
 from argoverse.utils.cv2_video_utils import VideoWriter
@@ -148,15 +149,17 @@ def dump_clipped_3d_cuboids_to_images(
         log_calib_data = dl.get_log_calibration_data(log_id)
 
         flag_done = False
-        for cam_idx, camera_name in enumerate(RING_CAMERA_LIST + STEREO_CAMERA_LIST):
+        CAMERA_LIST = RING_CAMERA_LIST + STEREO_CAMERA_LIST
+        CAMERA_LIST = ["ring_front_center"]
+        for _, camera_name in enumerate(CAMERA_LIST):
             fps = fps_map[camera_name]
             if generate_video_only:
                 mp4_path = f"{video_output_dir}/{log_id}_{camera_name}_{fps}fps.mp4"
                 video_writer = VideoWriter(mp4_path)
             cam_im_fpaths = dl.get_ordered_log_cam_fpaths(log_id, camera_name)
-            for i, im_fpath in enumerate(cam_im_fpaths):
+            for i, im_fpath in enumerate(tqdm(cam_im_fpaths)):
                 if i % 50 == 0:
-                    logging.info("\tOn file %s of camera %s of %s", i, camera_name, log_id)
+                    logging.info(f"\tOn file {i} of camera {camera_name} of {log_id}")
 
                 cam_timestamp = Path(im_fpath).stem.split("_")[-1]
                 cam_timestamp = int(cam_timestamp)
@@ -186,6 +189,7 @@ def dump_clipped_3d_cuboids_to_images(
                     continue
 
                 img = cv2.imread(im_fpath)
+                img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
                 camera_config = get_calibration_config(log_calib_data, camera_name)
                 planes = generate_frustum_planes(camera_config.intrinsic.copy(), camera_name)
 
@@ -255,7 +259,7 @@ def dump_clipped_3d_cuboids_to_images(
                 break
 
         if not generate_video_only:
-            for cam_idx, camera_name in enumerate(RING_CAMERA_LIST + STEREO_CAMERA_LIST):
+            for cam_idx, camera_name in enumerate(CAMERA_LIST):
                 # Write the cuboid video from individual frames -- could also write w/ fps=20,30,40
                 fps = fps_map[camera_name]
                 img_wildcard = f"{save_dir}/{camera_name}_%*.jpg"
